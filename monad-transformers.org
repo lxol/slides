@@ -1,0 +1,335 @@
+#+OPTIONS: num:nil toc:nil
+#+REVEAL_HLEVEL: 1
+# #+REVEAL_TRANS: None/Fade/Slide/Convex/Concave/Zoom
+#+REVEAL_TRANS: None
+
+#+REVEAL_INIT_OPTIONS: slideNumber:"c/t", width:1400, height:1000
+#+Title: Monad Transformers
+
+* Nested for-comprehension example
+DB user lookup can
+- fail because of technical issues
+- return user
+- fail becase user is not in DB
+  
+#+begin_src scala
+def lookupUserName(id: Long): Either[Error, Option[String]] =
+  for {
+    optUser <- lookupUser(id)
+  } yield {
+    for { user <- optUser } yield user.name
+  }
+#+end_src
+
+* Exercise: Composing Monads
+
+   
+   #+begin_src scala
+def compose[M1[_]: Monad, M2[_]: Monad] = {
+  type Composed[A] = M1[M2[A]]
+  new Monad[Composed] {
+    def pure[A](a: A): Composed[A] = a.pure[M2].pure[M1]
+
+    def flatMap[A, B](fa: Composed[A])(f: A => Composed[B]): Composed[B] = ???
+  }
+}
+   #+end_src
+
+   #+REVEAL: split:t
+
+   An attempt to use flatMap
+   #+begin_src scala
+     def compose[M1[_]: Monad, M2[_]: Monad] = {
+       type Composed[A] = M1[M2[A]]
+
+       new Monad[Composed] {
+          def pure[A](a: A): Composed[A] = a.pure[M2].pure[M1]
+
+          def flatMap[A, B](fa: Composed[A])(f: A => Composed[B]): Composed[B] =
+               Monad[M1].flatMap(fa)(m => Monad[M2].flatMap(m)(f))
+
+          def tailRecM[A, B](a: A)(f: A => Composed[Either[A,B]]): Composed[B] = ???
+        }
+       }
+
+   #+end_src
+   #+begin_example
+     cmd8.sc:8: type mismatch;
+      found   : A => Composed[B]
+         (which expands to)  A => M1[M2[B]]
+      required: A => M2[?]
+             Monad[M1].flatMap(fa)(m => Monad[M2].flatMap(m)(f))
+
+      Compilation Failed
+   #+end_example
+
+   #+REVEAL: split:t
+
+   M2 is Option
+   #+begin_src scala
+     def compose[M1[_]: Monad] = {
+       type Composed[A] = M1[Option[A]]
+
+       new Monad[Composed] {
+          def pure[A](a: A): Composed[A] = a.pure[Option].pure[M1]
+
+          def flatMap[A, B](fa: Composed[A])(f: A => Composed[B]): Composed[B] =
+               Monad[M1].flatMap(fa)(m => m.fold[Composed[B]](Option.empty.pure[M1])(f) )
+
+          def tailRecM[A, B](a: A)(f: A => Composed[Either[A,B]]): Composed[B] = ???
+        }
+       }
+   #+end_src
+
+
+   #+REVEAL: split:t
+    It is impossible to write a general definition of =flatMap=
+    without knowing something about M1 or M2.
+
+* A Transformative Example 
+   OptionT composes Option with other Monad.
+  
+   
+   #+REVEAL: split:t
+#+begin_src scala
+  import cats.data.OptionT
+  type ListOption[A] = OptionT[List, A]
+#+end_src
+
+   #+REVEAL: split:t
+OptionT constructor creates instances.
+
+#+begin_src scala
+  @ val result1: ListOption[Int] = OptionT(List(Option(10), None))
+  result1: ListOption[Int] = OptionT(List(Some(10), None))
+
+  @ val result2: ListOption[Int] = 32.pure[ListOption]
+  result2: ListOption[Int] = OptionT(List(Some(32)))
+
+#+end_src
+
+   #+REVEAL: split:t
+   
+  map and flatMap work as expected on combined monads 
+   #+begin_src scala
+     @ for {
+         r1 <- result1
+         r2 <- result2
+       } yield r1 + r2
+     res32: OptionT[List, Int] = OptionT(List(Some(42), None))
+   #+end_src
+
+
+* Monad Transformers in Cats
+   Monad transformer is a monad that wraps STACK of monads.
+ 
+  
+ [[./sandwich.jpeg]]
+
+   
+   #+REVEAL: split:t
+   Main concepts: 
+   
+- the available transformer classes;
+- how to build stacks of monads using transformers;
+- how to construct instances of a monad stack; and
+- how to pull apart a stack to access the wrapped monads.
+
+** The Monad Transformer Classes
+
+   - cats.data.OptionT
+   - cats.data.EitherT
+   - cats.data.ReaderT == cats.data.Kleisli "kleisli arrow"
+   - cats.data.WriterT
+   - cats.data.EitherT
+   - cats.data.StateT
+   - cats.data.IdT
+
+     
+** Building Monad Stacks
+   
+   
+   #+begin_src scala
+     type ListOption[A] = OptionT[List, A]
+   #+end_src
+   [[./trans-parts.png]]
+
+   #+REVEAL: split:t
+   
+   Outer Monad is HKT of 2 type parameters
+   
+#+begin_src scala
+  // Alias Either to a type constructor with one parameter:
+  type ErrorOr[A] = Either[String, A]
+  // Build our final monad stack using OptionT:
+  type ErrorOrOption[A] = OptionT[ErrorOr, A]
+#+end_src
+
+   #+REVEAL: split:t
+   
+Stack of three of more monads.
+ 
+ Let's create Future of an Either of Option.
+
+   Future[Either[E, Option[A]]]
+
+   #+REVEAL: split:t
+
+   Future[Either[E, Option[A]]]
+#+begin_src  scala
+
+type FutureEither[A] = EitherT[Future, String, A]
+type FutureEitherOption[A] = OptionT[FutureEither, A]
+
+#+end_src
+
+   #+REVEAL: split:t
+   #+begin_src scala
+     val futureEitherOr: FutureEitherOption[Int] =
+       for {
+         a <- 10.pure[FutureEitherOption]
+         b <- 32.pure[FutureEitherOption]
+       } yield  a + b
+   #+end_src
+
+   #+REVEAL: split:t
+
+   Use kind projector instead of defining type aliases.
+#+begin_src scala
+  @   123.pure[EitherT[Option, String, ?]]
+  res65: EitherT[Option, String, Int] = EitherT(Some(Right(123)))
+#+end_src
+
+** Constructing Instances
+
+   Create using apply:
+   
+#+begin_src scala
+  @ val errorStack1 = OptionT[ErrorOr, Int](Right(Some(10)))
+  errorStack1: OptionT[ErrorOr, Int] = OptionT(Right(Some(10)))
+#+end_src
+
+   #+REVEAL: split:t
+   Create using pure:
+   
+#+begin_src scala
+  @ val errorStack2 = 32.pure[ErrorOrOption]
+  errorStack2: ErrorOrOption[Int] = OptionT(Right(Some(32)))
+#+end_src
+
+** Unpacking Instances
+
+   Unpack using value method.
+   #+begin_src scala
+     @ errorStack1.value
+     res68: ErrorOr[Option[Int]] = Right(Some(10))
+
+     @ errorStack2.value.map(_.getOrElse(-1))
+     res69: Either[String, Int] = Right(32)
+
+   #+end_src
+
+   #+REVEAL: split:t
+   More than one call to value to unpack larger stack.
+   #+begin_src scala
+
+     @ futureEitherOr
+     res70: FutureEitherOption[Int] = OptionT(EitherT(Future(Success(Right(Some(42))))))
+
+     @ val intermediate = futureEitherOr.value
+     intermediate: FutureEither[Option[Int]] = EitherT(Future(Success(Right(Some(42)))))
+
+     @ val stack = intermediate.value
+     stack: Future[Either[String, Option[Int]]] = Future(Success(Right(Some(42))))
+
+     @ Await.result(stack, 1.second)
+     res73: Either[String, Option[Int]] = Right(Some(42))
+
+   #+end_src
+
+
+** Default instances
+  Many monads are defined using the transformer and Id monad.
+  #+begin_src scala 
+    type Reader[E, A] = ReaderT[Id, E, A] // = Kleisli[Id, E, A]
+    type Writer[W, A] = WriterT[Id, W, A]
+    type State[S, A] = StateT[Id, S, A]
+  #+end_src
+
+   #+REVEAL: split:t
+   Some monads are defined separately but they tend to mirror the
+   methods of the corresponding monad.
+   
+   #+ATTR_REVEAL: :frag roll-in
+   OptionT defines getOrElse
+
+   #+ATTR_REVEAL: :frag roll-in
+   EitherT defines fold, bimap, swap etc...
+
+** Usage Patterns
+  To operate on transformers in different context we can end up having
+  to unpack and repack them.
+
+***  Usage patters:  Approach one
+
+   Create a single "super stack" and sticking to it throughout our
+   code base.
+
+***  Usage patters:  Approach two
+   Approach two:
+ 
+   Use monad transformers as local "glue code".
+
+   #+ATTR_REVEAL: :frag roll-in
+    
+   Expose untransformed stacks at module boundaries
+
+   #+REVEAL: split:t
+
+   #+begin_src scala
+
+     type Logged[A] = Writer[List[String], A]
+
+     // Methods generally return untransformed stacks:
+     def parseNumber(str: String): Logged[Option[Int]] =
+       util.Try(str.toInt).toOption match {
+         case Some(num) => Writer(List(s"Read $str"), Some(num))
+         case None      => Writer(List(s"Failed on $str"), None)
+       }
+   #+end_src
+
+   #+ATTR_REVEAL: :frag roll-in
+   Logged[Option[Int]] is untransformed stack
+
+
+   #+REVEAL: split:t
+
+   #+begin_src scala
+
+     // Consumers use monad transformers locally to simplify composition:
+     def addAll(a: String, b: String, c: String): Logged[Option[Int]] = {
+       import cats.data.OptionT
+       val result = for {
+         a <- OptionT(parseNumber(a))
+         b <- OptionT(parseNumber(b))
+         c <- OptionT(parseNumber(c))
+       } yield a + b + c
+       result.value
+     }
+
+   #+end_src
+   
+   #+ATTR_REVEAL: :frag roll-in
+   Transformed stack is used only inside addAll. 
+
+   #+ATTR_REVEAL: :frag roll-in
+   To outside world we expose untransformed stack.
+
+
+   #+REVEAL: split:t
+   
+   This approach doesn't force OptionT on other users' code:
+   #+begin_src scala
+     val result1 = addAll("1", "2", "3")
+     val result2 = addAll("1", "a", "3")
+   #+end_src

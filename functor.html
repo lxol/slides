@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Scala with Cats.</title>
+<style type="text/css">
+.underline { text-decoration: underline; }
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js/css/reveal.css"/>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js/css/theme/moon.css" id="theme"/>
+
+
+<!-- If the query includes 'print-pdf', include the PDF print sheet -->
+<script>
+    if( window.location.search.match( /print-pdf/gi ) ) {
+        var link = document.createElement( 'link' );
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = 'https://cdn.jsdelivr.net/npm/reveal.js/css/print/pdf.css';
+        document.getElementsByTagName( 'head' )[0].appendChild( link );
+    }
+</script>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section id="sec-title-slide"><h1 class="title">Scala with Cats.</h1><p class="date">Created: 2020-05-12 Tue 09:43</p>
+</section>
+
+<section>
+<section id="slide-orgddc846a">
+<h2 id="orgddc846a">Chapter 3 Functors</h2>
+<div class="outline-text-2" id="text-orgddc846a">
+</div>
+</section>
+<section id="slide-org13d7639">
+<h3 id="org13d7639">Type class review.</h3>
+<p>
+Type class as a parameterised trait
+</p>
+<div class="org-src-container">
+
+<pre  class="src src-scala"><code trim><span style="color: #F0DFAF; font-weight: bold;">trait</span> <span style="color: #7CB8BB;">JsonWriter</span>[<span style="color: #BFEBBF;">A</span>] {
+  <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">write</span>(value<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>)<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">Json</span>
+}
+</code></pre>
+</div>
+
+</section>
+<section id="slide-org13d7639-split">
+
+<h3>Type class review.</h3>
+<p>
+Instance of the type class
+</p>
+<div class="org-src-container">
+
+<pre  class="src src-scala"><code trim><span style="color: #F0DFAF; font-weight: bold;">object</span> <span style="color: #BFEBBF;">JsonWriterInstances</span> {
+  <span style="color: #DCDCCC; font-weight: bold;">implicit</span> <span style="color: #F0DFAF; font-weight: bold;">val</span> <span style="color: #DFAF8F;">stringWriter</span><span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">JsonWriter</span>[<span style="color: #BFEBBF;">String</span>] <span style="color: #F0DFAF; font-weight: bold;">=</span>
+    <span style="color: #F0DFAF; font-weight: bold;">new</span> <span style="color: #7CB8BB;">JsonWriter</span>[<span style="color: #BFEBBF;">String</span>] {
+      <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">write</span>(value<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">String</span>)<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">Json</span> <span style="color: #F0DFAF; font-weight: bold;">=</span>
+        <span style="color: #BFEBBF;">JsString</span>(value)
+    }
+}
+</code></pre>
+</div>
+
+
+</section>
+<section id="slide-org13d7639-split">
+
+<h3>Type class review.</h3>
+
+<p>
+Interface object
+</p>
+<div class="org-src-container">
+
+<pre  class="src src-scala"><code trim>
+<span style="color: #F0DFAF; font-weight: bold;">object</span> <span style="color: #BFEBBF;">Json</span> {
+  <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">toJson</span>[<span style="color: #BFEBBF;">A</span>](value<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>)(<span style="color: #DCDCCC; font-weight: bold;">implicit</span> w<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">JsonWriter</span>[<span style="color: #BFEBBF;">A</span>])<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">Json</span> <span style="color: #F0DFAF; font-weight: bold;">=</span>
+    w.write(value)
+}
+
+</code></pre>
+</div>
+
+<p class="fragment roll-in">
+Usage
+</p>
+<div class="org-src-container">
+
+<pre  class="fragment roll-in"><code trim><span style="color: #BFEBBF;">Json</span>.toJson(<span style="color: #CC9393;">"foo bar"</span>)
+</code></pre>
+</div>
+
+</section>
+<section id="slide-org13d7639-split">
+
+<h3>Type class review.</h3>
+
+<p>
+Interface syntax
+</p>
+<div class="org-src-container">
+
+<pre  class="src src-scala"><code trim><span style="color: #DCDCCC; font-weight: bold;">implicit</span> <span style="color: #F0DFAF; font-weight: bold;">class</span> <span style="color: #7CB8BB;">JsonWriterOps</span>[<span style="color: #BFEBBF;">A</span>](value<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>) {
+  <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">toJson</span>(<span style="color: #DCDCCC; font-weight: bold;">implicit</span> w<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">JsonWriter</span>[<span style="color: #BFEBBF;">A</span>])<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">Json</span> <span style="color: #F0DFAF; font-weight: bold;">=</span>
+    w.write(value)
+}
+</code></pre>
+</div>
+
+<p class="fragment roll-in">
+Usage
+</p>
+<div class="org-src-container">
+
+<pre  class="fragment roll-in"><code trim><span style="color: #CC9393;">"foo bar"</span>.toJson
+<span style="color: #BFEBBF;">1.</span>toJson
+<span style="color: #BFEBBF;">Person</span>(<span style="color: #CC9393;">"John"</span>, <span style="color: #CC9393;">"Smith"</span>).toJson
+</code></pre>
+</div>
+
+
+</section>
+<section id="slide-org5d26fdb">
+<h3 id="org5d26fdb">Monoid review</h3>
+<div class="org-src-container">
+
+<pre  class="src src-scala"><code trim>
+<span style="color: #F0DFAF; font-weight: bold;">trait</span> <span style="color: #7CB8BB;">Monoid</span>[<span style="color: #BFEBBF;">A</span>] {
+  <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">combine</span>(x<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>, y<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>)<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>
+  <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">empty</span><span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>
+}
+</code></pre>
+</div>
+
+</section>
+<section id="slide-org5d26fdb-split">
+
+<h3>Monoid review</h3>
+<div class="org-src-container">
+
+<pre  class="src src-scala"><code trim><span style="color: #F0DFAF; font-weight: bold;">object</span> <span style="color: #BFEBBF;">MonoidLaws</span> {
+
+  <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">(1 + 2) + 3 == 1 + (2 + 3)</span>
+  <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">associativeLaw</span>[<span style="color: #BFEBBF;">A</span>](x<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>, y<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>, z<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>)(<span style="color: #DCDCCC; font-weight: bold;">implicit</span> m<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">Monoid</span>[<span style="color: #BFEBBF;">A</span>])<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">Boolean</span> <span style="color: #F0DFAF; font-weight: bold;">=</span> {
+    m.combine(x, m.combine(y, z)) ==
+    m.combine(m.combine(x, y), z)
+  }
+
+  <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">2 + 0 == 0 + 2 == 2</span>
+  <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">identityLaw</span>[<span style="color: #BFEBBF;">A</span>](x<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>)(<span style="color: #DCDCCC; font-weight: bold;">implicit</span> m<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">Monoid</span>[<span style="color: #BFEBBF;">A</span>])<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">Boolean</span> <span style="color: #F0DFAF; font-weight: bold;">=</span> {
+    (m.combine(x, m.empty) == x) &amp;&amp;
+    (m.combine(m.empty, x) == x)
+  }
+}
+
+</code></pre>
+</div>
+
+
+</section>
+<section id="slide-org51dba94">
+<h3 id="org51dba94">3.1 Examples of Functors</h3>
+<p class="fragment roll-in">
+Functor is anything with a map method.
+</p>
+
+<pre  class="fragment roll-in">
+scala&gt; List(1,2,4).map(n =&gt; n + 10)
+val res1: List[Int] = List(11, 12, 14)
+
+
+</pre>
+
+<pre  class="fragment roll-in">
+scala&gt; Option(1).map(n =&gt; n + 10)
+val res66: Option[Int] = Some(11)
+</pre>
+
+
+</section>
+<section id="slide-org51dba94-split">
+
+<h3>3.1 Examples of Functors</h3>
+<p>
+   Because map leaves the structure of the context unchanged, we can
+call it repeatedly to sequence multiple computations on the contents
+of an inial data structure.
+</p>
+
+<pre class="example" class="fragment roll-in">
+scala&gt; List(1,2,3).
+     | map( n =&gt; n + 1).
+     | map( n =&gt; n * 10).
+     | map( n =&gt; s"${n}!")
+val res74: List[String] = List(20!, 30!, 40!)
+</pre>
+
+</section>
+<section id="slide-org51dba94-split">
+
+<h3>3.1 Examples of Functors</h3>
+<p>
+Option map
+</p>
+<pre  class="example">
+scala&gt; Option(1).
+     | map( n =&gt; n + 1).
+     | map( n =&gt; n * 10).
+     | map( n =&gt; s"${n}!")
+val res76: Option[String] = Some(20!)
+</pre>
+
+</section>
+<section id="slide-org51dba94-split">
+
+<h3>3.1 Examples of Functors</h3>
+<p>
+Either map
+</p>
+<pre  class="example">
+scala&gt; Right(1).
+     | map( n =&gt; n + 1).
+     | map( n =&gt; n * 10).
+     | map( n =&gt; s"${n}!")
+val res77: scala.util.Either[Nothing,String] = Right(20!)
+</pre>
+
+</section>
+<section id="slide-org22ae53a">
+<h3 id="org22ae53a">3.2 More Examples of Functors</h3>
+<p>
+Future map
+</p>
+<pre  class="example">
+
+scala&gt; Future(1).
+     | map( n =&gt; n + 1).
+     | map( n =&gt; n * 10).
+     | map( n =&gt; s"${n}!")
+val res85: scala.concurrent.Future[String] = Future(&lt;not completed&gt;)
+
+scala&gt; Await.result(res85, 1.second)
+val res87: String = 20!
+
+</pre>
+
+
+</section>
+<section id="slide-org594c8ef">
+<h3 id="org594c8ef">Definition of Functor</h3>
+<div class="org-src-container">
+
+<pre  class="src src-scala"><code trim><span style="color: #F0DFAF; font-weight: bold;">trait</span> <span style="color: #7CB8BB;">Functor</span>[<span style="color: #BFEBBF;">F</span>[<span style="color: #F0DFAF; font-weight: bold;">_</span>]] {
+  <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">map</span>[<span style="color: #BFEBBF;">A</span>, <span style="color: #BFEBBF;">B</span>](fa<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">F</span>[<span style="color: #BFEBBF;">A</span>])(f<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span> <span style="color: #F0DFAF; font-weight: bold;">=&gt;</span> <span style="color: #BFEBBF;">B</span>)<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">F</span>[<span style="color: #BFEBBF;">B</span>]
+}
+</code></pre>
+</div>
+
+<p class="fragment roll-in">
+<i>Compare type paremeter to Monoid type class.</i>
+</p>
+<div class="org-src-container">
+
+<pre  class="fragment roll-in"><code trim><span style="color: #F0DFAF; font-weight: bold;">trait</span> <span style="color: #7CB8BB;">Monoid</span>[<span style="color: #BFEBBF;">A</span>] {
+  <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">combine</span>(x<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>, y<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>)<span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>
+  <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">empty</span><span style="color: #F0DFAF; font-weight: bold;">:</span> <span style="color: #7CB8BB;">A</span>
+}
+
+</code></pre>
+</div>
+
+</section>
+<section id="slide-orgf99e47f">
+<h3 id="orgf99e47f">Type constructors</h3>
+<pre  class="example">
+ scala&gt; :k Int
+ Int's kind is A
+
+ scala&gt; :k List
+ List's kind is F[+A]
+
+ scala&gt; :k Option
+ Option's kind is F[+A]
+
+ scala&gt; :k Either
+ Either's kind is F[+A1,+A2]
+
+ scala&gt; :k Future
+ scala.concurrent.Future's kind is F[+A]
+scala&gt; :k List
+List's kind is F[+A]
+
+scala&gt; :kind List
+List's kind is F[+A]
+
+scala&gt; trait Foo[A] {
+     | }
+
+scala&gt; new Foo[Int] {}
+val res0: Foo[Int] = $anon$1@2651e783
+
+scala&gt; new Foo[List[Int]] {}
+val res2: Foo[List[Int]] = $anon$1@54ed249f
+
+scala&gt; new Foo[Option[Int]] {}
+val res3: Foo[Option[Int]] = $anon$1@32e9c3af
+scala&gt; trait Bar[F[_]] {}
+trait Bar
+
+scala&gt; new Bar[Int] {}
+               ^
+       error: Int takes no type parameters, expected: 1
+
+scala&gt; new Bar[List] {}
+val res5: Bar[List] = $anon$1@32029cd
+
+scala&gt; 
+
+scala&gt; 
+scala&gt; :kind Either
+Either's kind is F[+A1,+A2]
+
+scala&gt; new Bar[Either] {}
+               ^
+       error: Either takes 2 type parameters, expected: 1
+
+scala&gt; 
+
+
+scala&gt; new Bar[({type l[a] = Either[Int, a]})#l]{}
+val res15: Bar[[a]scala.util.Either[Int,a]] = $anon$1@79893462
+
+
+
+</pre>
+
+</section>
+<section id="slide-orge407437">
+<h3 id="orge407437">Application context and Functor</h3>
+<ul class="fragment roll-in">
+<li><p>
+applicaton contexts (<i>effect</i>)
+</p>
+<ul>
+<li><code>List</code> - effect of repetition of elements</li>
+<li><code>Option</code> - effect of uncertainty</li>
+
+</ul>
+
+<p class="fragment roll-in">
+Effects modelled using a type constructor F[_]
+</p></li>
+
+</ul>
+</section>
+</section>
+</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js/js/reveal.js"></script>
+
+<script>
+// Full list of configuration options available here:
+// https://github.com/hakimel/reveal.js#configuration
+Reveal.initialize({
+slideNumber:"c/t",
+multiplex: {
+    secret: '', // null if client
+    id: '', // id, obtained from socket.io server
+    url: '' // Location of socket.io server
+},
+
+// Optional libraries used to extend on reveal.js
+dependencies: [
+ { src: 'https://cdn.jsdelivr.net/npm/reveal.js/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+ { src: 'https://cdn.jsdelivr.net/npm/reveal.js/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: 'https://cdn.jsdelivr.net/npm/reveal.js/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: 'https://cdn.jsdelivr.net/npm/reveal.js/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+ { src: 'https://cdn.jsdelivr.net/npm/reveal.js/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }]
+});
+</script>
+</body>
+</html>
